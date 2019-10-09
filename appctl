@@ -43,19 +43,14 @@ if [ -f /etc/bashrc ]; then
 	. /etc/bashrc
 fi
 
-# Global parameter setting
-OPERATION_TYPE="start stop status"
-
 # The file directory where the project application package is located
 # Need to pay attention to the [APP_HOME] project path,
 # The following needs to be userd.
-APP_HOME="/home/user01/app"
+APP_HOME="/home/tomcat01/app"
 
 # Extended parameter, now userd to start the specified configuration file
 EXTRA_PARA="--spring.profiles.active=inte"
 
-# Configure JAVA_HOME
-JAVA_HOME=""
 
 [ $# != 2 ] && \
     cat <<EOF
@@ -82,6 +77,9 @@ Ps:
 	executed.
 EOF
 
+# Global parameter setting
+OPERATION_TYPE="start stop status"
+
 # Reference global variable [OPERATION_TYPE]
 if [ $(echo ${OPERATION_TYPE}| grep $1| wc -l) == 0 ]; then
     echo "--> Parameter(Operation Type) Error. ### $1 ###"
@@ -98,7 +96,7 @@ fi
 
 # Configure application parameter
 APP_NAME="$2"
-APP_HOME=${APP_HOME}"/"${APP_NAME}
+#APP_HOME=${APP_HOME}"/"${APP_NAME}
 
 # Determine if the jar file exists or is a valid file
 jar_num=$(ls -l ${APP_HOME} | grep jar| wc -l)
@@ -113,7 +111,8 @@ fi
 if [ -z "${JAVA_HOME}" ]; then
   JAVA_PATH=$(which java 2>/dev/null)
   if [ "x${JAVA_PATH}" != "x" ]; then
-    JAVA_HOME=$(dirname "${JAVA_PATH}" 2>/dev/null)
+    JAVA_PATH=$(dirname "${JAVA_PATH}" 2>/dev/null)
+	JAVA_HOME=$(dirname "${JAVA_PATH}" 2>/dev/null)
   fi
 fi
 
