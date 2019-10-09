@@ -1,128 +1,150 @@
 #!/usr/bin/env bash
+
+# Start earnestly and accumulate
+# The Script is for the operation management of the manage application, including
+# start stop and restart jar service.
+# My github address:
+#			https://github.com/niu8753
+# 	Current Version: 1.2
+# 	Date:         	2019-01-30
+# 	Author:       	Nestor(Peng.niu)
+# 	Email:        	niu8753@163.com
+# 	Notes:        	For CentOS 7+ only. Sprint Jar.
+# 	Copyright:    	Nestor.
+
+# -----------------------------------------------------------------------------
+# Control Script for the Jar Server
+# 
+# Environment Variable Prerequisites
+# 
+#   Minimize the setting of parameters to keep the script simple
 #
-# Filename:     templates
-# Revision:     1.2
-# Current Version: 1.2
-# Date:         2019-01-30
-# Author:       Nestor(Peng.niu)
-# Email:        niu8753@163.com
-# Description:  The Script is for the operation management of the manage application, including
-#               start stop and restart, and provides the function of viewing the application log.
-# Notes:        For CentOS 7+ only. Sprint Jar.
-# Copyright:    2018 (c) Nestor.
-# Version:      1.0
-#               The first script provides a simple service statup/stop/restart.
-# Version:      1.1
-#               The second script adds specification writting and optimizes the startup, issues 
-#               after the service is stopped, further adjusting the variable definition.
-# Version:      1.2
-#               All service use a unified script,
-#               use parameters to distinguish unused applications, 
-#               and further improve the help information
-#               use the command to get the java command.
-# Version:		1.3
-#				Remove the directory judgment and create a directory automatically with Jenkins
+#	APP_HOME		May point at your app "exist" directory.
+# 	
+#	OPERATION_TYPE	(Optional) Base operational commands that
+#					regulate use input.
+#	
+#	JAR_OPTS		(Optional) Jar running options used when the "start"
+#					command is executed.
+#					Only use '-jar' here, if you need other parameter, pleare
+#					refer to java to use help
+#
+#	EXTRA_PARA		(Optional) Start service use selected the environment. 
+#					for example:
+#						--spring.profiles.active=dev,test,prod,inte
+#
+#   JAVA_HOME       Must point at your Java Development Kit installation.
+#                   Required to run the with the "debug" argument.	
+# 
+# -----------------------------------------------------------------------------
+
+# Source global definitions
+if [ -f /etc/bashrc ]; then
+	. /etc/bashrc
+fi
 
 # Global parameter setting
-# Operation type
-operation_type="start stop status logs"
-
-# Project informatons
-project_list="creport declare seller purchaser"
+OPERATION_TYPE="start stop status"
 
 # The file directory where the project application package is located
-# Need to pay attention to the [APP_PATH] project path,
+# Need to pay attention to the [APP_HOME] project path,
 # The following needs to be userd.
-APP_PATH="/home/user01/app"
-
-# Configure JAVA_HOME
-JAVA_HOME="/home/user01/.tools/jdk1.8"
+APP_HOME="/home/user01/app"
 
 # Extended parameter, now userd to start the specified configuration file
-#EXTRA_PARA=""
 EXTRA_PARA="--spring.profiles.active=inte"
+
+# Configure JAVA_HOME
+JAVA_HOME=""
 
 [ $# != 2 ] && \
     cat <<EOF
 NAME
-    startup.sh - unified startup script.
+    appctl - unified startup script.
 
 SYNOPSIS
-    startup.sh [OPTION1] [OPTION2]
+    appctl [OPTION1] [OPTION2]
 
 DESCRIPTION
     startup.sh is used to start the jar service.
-    OpTIONS1 ---- operater command (status/stop/start/logs)
+    OpTIONS1 ---- operater command (status/stop/start)
                   start -- start service
                   stop  -- stop service
-                  logs  -- check the service running log
                   status -- display the service running status 
-    OPTIONS2 ---- Module name [ gateway discovery manager center api 
-                                base comm purchaser seller workflow 
-                                indicator discovery]
+    OPTIONS2 ---- app name
+				  The name of the application in the specified directory
 EXAMPLE:
-    check service status: startup.sh status gateway
-           start service: startup.sh start discovery
-            stop service: startup.sh stop discovery
-
+    check service status: appctl status gateway
+           start service: appctl start discovery
+            stop service: appctl stop discovery
+Ps:
+	The script should be placed under bin, otherwise the full path should be
+	executed.
 EOF
 
-# Reference global variable [operation_type]
-if [ $(echo ${operation_type}| grep $1| wc -l) == 0 ]; then
+# Reference global variable [OPERATION_TYPE]
+if [ $(echo ${OPERATION_TYPE}| grep $1| wc -l) == 0 ]; then
     echo "--> Parameter(Operation Type) Error. ### $1 ###"
-    echo "--> ${operation_type}"
+    echo "--> ${OPERATION_TYPE}"
     exit 1
 fi
 
-# Reference global variable [project_list]
-if [ $(echo ${project_list}| grep $2| wc -l) == 0 ]; then
+APP_HOME="${APP_HOME}/$2"
+if [ ! -d ${APP_HOME} ]; then
     echo "--> Current project ###  $2 ### not exist.. Please check it."
-    echo "--> ${project_list}"
+    echo "--> ${APP_HOME}"
     exit 1
 fi
 
 # Configure application parameter
 APP_NAME="$2"
-APP_PATH=${APP_PATH}"/"${APP_NAME}
+APP_HOME=${APP_HOME}"/"${APP_NAME}
 
 # Determine if the jar file exists or is a valid file
-jar_count=$(ls -l ${APP_PATH} | grep jar| wc -l)
-if [ $jar_count != 1 ]; then
+jar_num=$(ls -l ${APP_HOME} | grep jar| wc -l)
+if [ $jar_num != 1 ]; then
     echo "--> The jar file does not exist or there is more than one, 
-    Please check the directory ${APP_PATH}." && exit 1
+    Please check the directory ${APP_HOME}." && exit 1
+else
+    APP_INFO="${APP_HOME}/*.jar"
 fi
 
-# Set the application package absolute path
-APP_INFO="${APP_PATH}/*.jar"
-APP_LOG=${APP_PATH}/${APP_NAME}.log
-
 # Make sure prerequisite environment variables are set
-[ -n "${JAVA_HOME}" ] && JAVA_SBIN="${JAVA_HOME}/bin/java"
-[ ! -n "${JAVA_HOME}" ] && JAVA_SBIN=$(which java)
-$(test -e ${JAVA_SBIN}) || (echo "--> Please configure the correct java path" && exit 1)
+if [ -z "${JAVA_HOME}" ]; then
+  JAVA_PATH=$(which java 2>/dev/null)
+  if [ "x${JAVA_PATH}" != "x" ]; then
+    JAVA_HOME=$(dirname "${JAVA_PATH}" 2>/dev/null)
+  fi
+fi
 
-JAVA_OPTS=" -jar "
+#
+JAR_OPTS=" -jar "
 
 # Check if the app is running
 check_running() {
     service_pid=$(ps -ef|grep java|grep ${APP_NAME}|awk '{print $2}')
     # The existence process returns 0,otherwise it returns 1
-    if [ -z ${service_pid} ]; then return 1; else return 0; fi
+    if [ -z ${service_pid} ]; then 
+		return 1
+	else 
+		return 0
+	fi
 }
 
-# Start jar service
+# Start service
 if [ "$1" == "start" ]; then
     echo $"Starting the ${APP_NAME} service..."
     check_running
     if [ "$?" -eq "0" ]; then
         echo $"${APP_NAME} is already running, Pid is ${service_pid}"
     else
-        ${JAVA_SBIN} ${JAVA_OPTS} ${APP_INFO}  ${EXTRA_PARA} >> ${APP_LOG} 2>&1 &
+        ${JAVA_HOME}/bin/java ${JAR_OPTS} ${APP_INFO}  ${EXTRA_PARA} >> \
+		${APP_HOME}/${APP_NAME}.log 2>&1 &
     fi
     exit 0
 fi
 
-# Stop application
+# Stop service
 if [ "$1" == "stop" ]; then
     echo $"Stopping the ${APP_NAME} service..."
     check_running
@@ -135,23 +157,13 @@ if [ "$1" == "stop" ]; then
     exit 0
 fi
 
-# Display application running status
+# Display running status
 if [ "$1" == "status" ]; then
     check_running
     if [ "$?" -eq "0" ]; then
         echo $"${APP_NAME} is running. Pid is ${service_pid}"
     else
         echo $"${APP_NAME} is not running."
-    fi
-    exit 0
-fi
-
-# Display the running log of the service
-if [ "$1" == "logs" ]; then
-    if [ -f ${APP_LOG} ]; then
-        tail -100f ${APP_LOG}
-    else
-        echo $"${APP_LOG} is not exist..."
     fi
     exit 0
 fi
