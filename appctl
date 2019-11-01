@@ -49,7 +49,10 @@ fi
 APP_HOME="/home/tomcat01/app"
 
 # Extended parameter, now userd to start the specified configuration file
-EXTRA_PARA="--spring.profiles.active=inte"
+EXTRA_PARA="--spring.profiles.active=dev"
+
+# 
+JAVA_HOME=""
 
 
 [ $# != 2 ] && \

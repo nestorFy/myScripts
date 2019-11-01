@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+#
+# Filename:     templates
+# Revision:     1.2
+# Date:         2019-01-30
+# Author:       Nestor(Peng.niu)
+# Email:        niu8753@163.com
+# Description:  The Script is for the operation management of the manage application, including
+#               start stop and restart, and provides the function of viewing the application log.
+# Notes:        For CentOS 7+ only. Sprint Jar.
+# Copyright:    2018 (c) Nestor.
+# Version:      1.0
+#               The first script provides a simple service statup/stop/restart.
+# Version:      1.1
+#               The second script adds specification writting and optimizes the startup, issues 
+#               after the service is stopped, further adjusting the variable definition.
+# Version:      1.2
+#               All service use a unified script,
+#               use parameters to distinguish unused applications, 
+#               and further improve the help information
+#               use the command to get the java command.
+
+# Global parameter setting
+# Operation type
+operation_type="start stop status logs"
+
+# Project informatons
+#project_list="discover router"
+
+# The file directory where the project application package is located
+# Need to pay attention to the [APP_PATH] project path,
+# The following needs to be userd.
+APP_PATH="/data/app"
+
+# Configure JAVA_HOME
+JAVA_HOME="/data/tools/jdk8"
+
+# Extended parameter, now userd to start the specified configuration file
+EXTRA_PARA=" --spring.profiles.active=pre"
+
+[ $# != 2 ] && \
+    cat <<EOF
+NAME
+    zlgroupctl - unified startup script.
+
+SYNOPSIS
+    zlgroupctl [OPTION1] [OPTION2]
+
+DESCRIPTION
+    zlgroupctl is used to start the jar service.
+    OpTIONS1 ---- operater command (status/stop/start/logs)
+                  start -- start service
+                  stop  -- stop service
+                  logs  -- check the service running log
+                  status -- display the service running status 
+    OPTIONS2 ---- Module name [ gateway discovery manager center api 
+                                base comm purchaser seller workflow 
+                                indicator discovery]
+EXAMPLE:
+    check service status: zlgroupctl status gateway
+           start service: zlgroupctl start discovery
+            stop service: zlgroupctl stop discovery
+
+EOF
+
+# Reference global variable [operation_type]
+#if [ $(echo ${operation_type}| grep $1| wc -l) == 0 ]; then
+if [ ! -d "${APP_PATH}/$2" ]; then
+    echo "--> Parameter(Operation Type) Error. ### $1 ###"
+    echo "--> ${APP_PATH}/$2"
+    exit 1
+fi
+
+# Reference global variable [project_list]
+#if [ $(echo ${project_list}| grep $2| wc -l) == 0 ]; then
+#iaf [ $(echo ${project_list}| grep $2| wc -l) == 0 ]; then
+#    echo "--> Current project ###  $2 ### not exist.. Please check it."
+#    echo "--> ${project_list}"
+#    exit 1
+#fi
+app_path="${APP_PATH}/$2"
+if [ ! -d ${app_apht} ]; then
+    echo "--> Current project ###  $2 ### not exist.. Please check it."
+    echo "--> ${app_path}"
+    exit 1
+fi
+
+
+# Configure application parameter
+APP_NAME="$2"
+APP_PATH=${APP_PATH}"/"${APP_NAME}
+
+# Determine if the jar file exists or is a valid file
+jar_count=$(ls -l ${APP_PATH} | grep jar| wc -l)
+if [ $jar_count != 1 ]; then
+    echo "--> The jar file does not exist or there is more than one, 
+    Please check the directory ${APP_PATH}." && exit 1
+fi
+
+# Set the application package absolute path
+APP_INFO="${APP_PATH}/*.jar"
+APP_LOG=${APP_PATH}/${APP_NAME}.log
+
+# Make sure prerequisite environment variables are set
+[ -n "${JAVA_HOME}" ] && JAVA_SBIN="${JAVA_HOME}/bin/java"
+[ ! -n "${JAVA_HOME}" ] && JAVA_SBIN=$(which java)
+$(test -e ${JAVA_SBIN}) || (echo "--> Please configure the correct java path" && exit 1)
+
+JAVA_OPTS=" -jar "
+
+# Check if the app is running
+check_running() {
+    service_pid=$(ps -ef|grep java|grep ${APP_NAME}| grep -v "tomcat-job"|awk '{print $2}')
+    # The existence process returns 0,otherwise it returns 1
+    if [ -z ${service_pid} ]; then return 1; else return 0; fi
+}
+
+# Start jar service
+if [ "$1" == "start" ]; then
+    echo $"Starting the ${APP_NAME} service..."
+    check_running
+    if [ "$?" -eq "0" ]; then
+        echo $"${APP_NAME} is already running, Pid is ${service_pid}"
+    else
+        ${JAVA_SBIN} ${JAVA_OPTS} ${APP_INFO}  ${EXTRA_PARA} >> ${APP_LOG} 2>&1 &
+    fi
+    exit 0
+fi
+
+# Stop application
+if [ "$1" == "stop" ]; then
+    echo $"Stopping the ${APP_NAME} service..."
+    check_running
+    if [ "$?" -eq "0" ]; then
+        kill -9 ${service_pid}
+        echo $"${APP_NAME} is stopped!"
+    else
+        echo $"${APP_NAME} had been stopped!"
+    fi
+    exit 0
+fi
+
+# Display application running status
+if [ "$1" == "status" ]; then
+    check_running
+    if [ "$?" -eq "0" ]; then
+        echo $"${APP_NAME} is running. Pid is ${service_pid}"
+    else
+        echo $"${APP_NAME} is not running."
+    fi
+    exit 0
+fi
+
+# Display the running log of the service
+if [ "$1" == "logs" ]; then
+    if [ -f ${APP_LOG} ]; then
+        tail -100f ${APP_LOG}
+    else
+        echo $"${APP_LOG} is not exist..."
+    fi
+    exit 0
+fi
