@@ -1,0 +1,82 @@
+pipeline {
+    agent any    
+    environment {
+        APP_NAME = "router"
+		APP_PORT = "7765"        
+		IMAGE_VERSION = "2.0.5"
+		EUREKA_CLASTER_IP = "10.9.74.142"
+		
+		MIRROR_PREFIX = "harbor.scnebula.com/tax-pangu/$APP_NAME"
+        VERSION = "${env.BUILD_ID}"
+        DOCKERFILEPATH = "deploy/Dockerfile"
+		
+		JAR_FILE_NAME = sh(script: 'find ./ -name pom.xml |xargs  grep -E "<finalName.*+Name>"| sed "s/ //g;s/.*<finalName>//g;s/<.finalName>//g"', returnStdout: true).trim()
+		JAR_FILE_PATH = sh(script: 'find ./ -name pom.xml |xargs  grep -E "<finalName.*+Name>"| sed "s/:.*//g"|xargs dirname',returnStdout: true).trim()
+		SOURCE_APP_FILE = "$JAR_FILE_PATH/target/$JAR_FILE_NAME"        
+    }
+
+    stages {
+        stage('Build') { 
+            steps {
+				echo "Build ... "
+				echo "[BUILD_ID]           : ${env.BUILD_ID}"
+                echo "[BUILD_NUMBER]       : ${env.BUILD_NUMBER}"
+                echo "[BUILD_DISPLAY_NAME] : ${env.BUILD_DISPLAY_NAME}"
+				
+                sh "mvn clean package -Dmaven.test.skip=True"
+            }
+        }
+        stage('Build Image and Push') { 
+            steps {
+				sh 'echo Build stage ...'
+				echo "[BUILD_ID]           : ${env.BUILD_ID}"
+                echo "[BUILD_NUMBER]       : ${env.BUILD_NUMBER}"
+                echo "[BUILD_DISPLAY_NAME] : ${env.BUILD_DISPLAY_NAME}"
+				
+				sh '''
+				sed -i "s#SOURCE_APP_FILE#$SOURCE_APP_FILE#g" deploy/Dockerfile
+				sed -i "s/APP_PORT/$APP_PORT/g" deploy/Dockerfile
+				sed -i "s/APP_NAME/$APP_NAME/g" deploy/Dockerfile
+				sed -i "s/IMAGE_VERSION/$IMAGE_VERSION/g" deploy/Dockerfile
+				'''
+                sh "docker build -t $MIRROR_PREFIX:v0.$VERSION -f $DOCKERFILEPATH ." 
+				sh "docker login -u pangu -p Admin@123 harbor.scnebula.com"
+				sh "docker push $MIRROR_PREFIX:v0.$VERSION"
+				sh "docker logout harbor.scnebula.com"
+				sh "docker rmi $MIRROR_PREFIX:v0.$VERSION"
+            }
+        }
+        stage('Test'){
+            steps {
+                sh 'echo Test stage ...' 
+                echo "[JOB_NAME]           : ${env.JOB_NAME}"
+                echo "[JOB_BASE_NAME]      : ${env.JOB_BASE_NAME}"
+                echo "[BUILD_TAG]          : ${env.BUILD_TAG}"
+                echo "[EXECUTOR_NUMBER]    : ${env.EXECUTOR_NUMBER}"
+                echo "[NODE_NAME]          : ${env.NODE_NAME}"
+                echo "[NODE_LABELS]        : ${env.NODE_LABELS}"
+            }
+        }
+        stage('Deploy') {
+            steps {
+				sh 'echo Deploy stage ...'
+				echo "[WORKSPACE]          : ${env.WORKSPACE}"
+                echo "[JENKINS_HOME]       : ${env.JENKINS_HOME}"
+                echo "[JENKINS_URL]        : ${env.JENKINS_URL}"
+                echo "[BUILD_URL]          : ${env.BUILD_URL}"
+                echo "[JOB_URL]            : ${env.JOB_URL}"
+                echo "[GIT_COMMIT]         : ${env.GIT_COMMIT}"
+				
+                sh '''
+				sed -i "s/EUREKA_CLASTER_IP/$EUREKA_CLASTER_IP/g" deploy/deployment.yaml
+			    sed -i -E "s/v0.[0-9]+/v0.$VERSION/g" deploy/deployment.yaml
+				sed -i "s/APP_NAME/$APP_NAME/g" deploy/deployment.yaml
+				sed -i "s/APP_PORT/$APP_PORT/g" deploy/deployment.yaml
+				'''
+				sh '/usr/bin/kubectl apply -f deploy/deployment.yaml'
+				
+                
+            }
+        }
+    }
+}

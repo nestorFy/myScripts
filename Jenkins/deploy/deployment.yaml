@@ -1,0 +1,57 @@
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: tax-APP_NAME
+  namespace: ns-pangu
+  labels:
+    app: tax-APP_NAME
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        environment: dev
+        tier: backend
+        app: tax-APP_NAME
+    spec:
+      containers:
+      - name: tax-APP_NAME
+        image: harbor.scnebula.com/tax-pangu/APP_NAME:v0.1
+        ports:
+        - containerPort: APP_PORT
+      hostAliases:
+        - ip: "EUREKA_CLASTER_IP"
+          hostnames:
+            - "eureka.scnebula.com"
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: APP_NAME-server
+  namespace: ns-pangu
+spec:
+  selector:
+    environment: dev
+    tier: backend
+    app: tax-APP_NAME
+  ports:
+    - name: APP_NAME
+      port: 80
+      targetPort: APP_PORT
+
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: APP_NAME-ingress
+  namespace: ns-pangu
+spec:
+  rules:
+  - host: APP_NAME.scnebula.com
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: APP_NAME-server
+          servicePort: APP_NAME
